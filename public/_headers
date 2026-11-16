@@ -1,0 +1,6 @@
+# Security headers for Cloudflare Pages (this file is read by Pages at deploy time).
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(self), camera=(), microphone=()

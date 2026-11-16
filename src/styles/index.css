@@ -1,0 +1,161 @@
+@import 'tailwindcss';
+
+/* Dark mode is switched by adding the "dark" class to <html> (see ThemeProvider). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ------------------------------------------------------------------
+   LAKBAY design tokens
+   - navy  = structure, text, hero backgrounds
+   - brand = teal: links, selection, "verified", active navigation
+   - sun   = warm yellow: the main call to action and destination pin
+   Yellow is only used as a BACKGROUND with navy text (yellow text on
+   white fails contrast).
+   ------------------------------------------------------------------ */
+@theme {
+  --color-navy-50: #f1f4fa;
+  --color-navy-100: #e0e6f2;
+  --color-navy-200: #c2cde3;
+  --color-navy-300: #95a7cb;
+  --color-navy-400: #6479ab;
+  --color-navy-500: #44598c;
+  --color-navy-600: #344673;
+  --color-navy-700: #2a395e;
+  --color-navy-800: #1f2b4a;
+  --color-navy-900: #131d38;
+  --color-navy-950: #0b1122;
+
+  --color-brand-50: #ecfaf7;
+  --color-brand-100: #d0f2eb;
+  --color-brand-200: #a3e4d7;
+  --color-brand-300: #6dcfbd;
+  --color-brand-400: #3fb6a2;
+  --color-brand-500: #2a9a88;
+  --color-brand-600: #1f7c6e;
+  --color-brand-700: #1c635a;
+  --color-brand-800: #1a4f49;
+  --color-brand-900: #18423d;
+  --color-brand-950: #092622;
+
+  --color-sun-50: #fffaeb;
+  --color-sun-100: #fff0c6;
+  --color-sun-200: #ffe088;
+  --color-sun-300: #fdcf55;
+  --color-sun-400: #f9c440;
+  --color-sun-500: #eda70f;
+  --color-sun-600: #cc8008;
+  --color-sun-700: #a25b0b;
+
+  --font-sans: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+
+  --radius-card: 1.25rem;
+
+  --animate-rise: rise 220ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-fade: fade 180ms ease-out both;
+  --animate-sheet: sheet 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes sheet {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+/* Semantic colors that flip automatically in dark mode:
+   bg-canvas, bg-surface, bg-surface-2, text-ink, text-muted, border-line */
+:root {
+  --canvas: #f5f7fb;
+  --surface: #ffffff;
+  --surface-2: #eef2f8;
+  --ink: #0b1122;
+  --muted: #475676;
+  --line: #dce2ee;
+}
+.dark {
+  --canvas: #0b1122;
+  --surface: #121a31;
+  --surface-2: #19233e;
+  --ink: #eef2fb;
+  --muted: #a6b2cd;
+  --line: #26324f;
+}
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-tap-highlight-color: transparent;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply min-h-dvh bg-canvas font-sans text-ink antialiased;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-500;
+  }
+}
+
+/* ---------- Map markers (HTML markers created in InteractiveMap.tsx) ---------- */
+.lakbay-marker {
+  pointer-events: none;
+}
+.lakbay-marker--origin {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 6px solid var(--color-brand-500);
+  box-shadow: 0 2px 6px rgb(11 17 34 / 0.35);
+}
+.lakbay-marker--destination,
+.lakbay-marker--searched {
+  width: 30px;
+  height: 30px;
+  border-radius: 9999px 9999px 9999px 0;
+  transform: rotate(-45deg);
+  transform-origin: center;
+  margin-bottom: 14px;
+  box-shadow: 0 2px 6px rgb(11 17 34 / 0.35);
+}
+.lakbay-marker--destination {
+  background: var(--color-sun-400);
+  border: 3px solid var(--color-navy-900);
+}
+.lakbay-marker--searched {
+  background: var(--color-navy-900);
+  border: 3px solid #ffffff;
+}
+.lakbay-marker--user {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #2563eb;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 0 6px rgb(37 99 235 / 0.25);
+}
+
+/* Respect people who turn off animations in their phone settings. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
