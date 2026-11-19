@@ -21,6 +21,7 @@ import { contactForUserAgent, overpassUrl } from './lib/env';
 import { finalizeCandidates, summarize } from './lib/finalize';
 import { sha256 } from './lib/hash';
 import { placesQuery, routesQuery, runOverpass } from './lib/overpass';
+import { assignFromBoundaries, boundariesFromOverpass, boundaryQuery, needsBoundaryLookup } from './lib/boundaries';
 import { writeReport } from './lib/report';
 import type { DraftCandidate } from './lib/types';
 
@@ -137,6 +138,18 @@ async function commandOsm(args: string[]) {
     hashes.push(places.sha256, routes.sha256);
     areaResults.push({ area, relationId: result.areaRelationId });
     upstream = result.upstreamTimestamp ?? upstream;
+  }
+
+  // Stops outside the imported areas (e.g. in Metro Manila): look up their
+  // municipality in the official OSM boundaries (one extra, cached query).
+  const unresolved = drafts.filter((d) => needsBoundaryLookup(d) && !drafts.some((o) => o.external_id === d.external_id && o.area_code));
+  if (unresolved.length) {
+    log(`\nLooking up municipalities for ${unresolved.length} stops outside the imported areas`);
+    const fetchOpts = { endpoint, contact, cacheDir: CACHE_DIR, refresh: values.refresh, log };
+    const boundaryData = await runOverpass(boundaryQuery(), fetchOpts);
+    const filled = assignFromBoundaries(unresolved, boundariesFromOverpass(boundaryData.data));
+    log(`  filled ${filled}; ${unresolved.length - filled} left for the reviewer`);
+    hashes.push(boundaryData.sha256);
   }
 
   await uploadOrReport({

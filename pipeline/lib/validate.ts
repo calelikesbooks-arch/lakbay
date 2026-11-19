@@ -54,7 +54,9 @@ export function validateCandidate(c: DraftCandidate, now = new Date()): Issue[] 
       }
     }
     if (!c.municipality) {
-      add('municipality_unknown', 'warning', 'Outside the imported areas: the reviewer must enter the municipality.');
+      add('municipality_unknown', 'warning', 'Outside the imported areas and not inside a known boundary: the reviewer must enter the municipality.');
+    } else if (!c.province) {
+      add('province_unknown', 'warning', 'The reviewer must enter the province.');
     }
     if (c.kind === 'stop' && /\bterminal\b/i.test(c.name ?? '')) {
       add('name_suggests_terminal', 'warning', 'Named like a terminal but tagged as a stop. Check which it is.');

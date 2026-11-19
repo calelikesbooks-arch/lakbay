@@ -129,3 +129,9 @@ See `docs/map.md` (features, providers, Nominatim policy compliance, setup).
 ## Behavior change
 - Verifying a record now requires a field survey, official document or operator source.
   OSM/GTFS/community evidence alone is refused.
+
+## Fix (2026-11-21): municipalities of imported stops
+- Stops inside Meycauayan/Bocaue that were first seen as stops of a Marilao route lost their municipality. The copy that knows its area now wins.
+- Stops outside the imported areas get municipality/province from OSM administrative boundaries (`pipeline/lib/boundaries.ts`, one extra cached Overpass query).
+- Overpass client retries on 502/503 too (30 s, 60 s, 120 s).
+- 18 pipeline tests.

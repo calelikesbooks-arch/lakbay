@@ -5,9 +5,14 @@ import { qualityOf, validateCandidate } from './validate';
 import type { Candidate, DraftCandidate } from './types';
 
 export function finalizeCandidates(drafts: DraftCandidate[], now = new Date(), dedupe?: DedupeOptions): Candidate[] {
-  // Same object found twice (e.g. on an area border): keep the first.
+  // Same object found twice (e.g. as a stop of a route from another area AND
+  // as a place inside its own area): keep the copy that knows its area.
   const byId = new Map<string, DraftCandidate>();
-  for (const d of drafts) if (!byId.has(d.external_id)) byId.set(d.external_id, d);
+  const rank = (d: DraftCandidate) => (d.area_code ? 2 : d.municipality ? 1 : 0);
+  for (const d of drafts) {
+    const existing = byId.get(d.external_id);
+    if (!existing || rank(d) > rank(existing)) byId.set(d.external_id, d);
+  }
   const unique = [...byId.values()];
 
   const duplicates = findBatchDuplicates(unique as (DraftCandidate & { attributes: { priority?: number } })[], dedupe);

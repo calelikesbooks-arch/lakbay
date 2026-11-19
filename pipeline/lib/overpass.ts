@@ -6,7 +6,7 @@
  *  - limits count per application, not per user
  *  - identify the application with a custom User-Agent
  * LAKBAY: 2-3 queries per area per run, at least 10 s apart, cached 24 h,
- * backs off on 429/504, never runs in the browser or on a schedule by default.
+ * backs off exponentially on 429/502/503/504, never runs in the browser or on a schedule by default.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -22,7 +22,7 @@ export interface OsmElement {
   center?: { lat: number; lon: number };
   geometry?: { lat: number; lon: number }[];
   tags?: Record<string, string>;
-  members?: { type: 'node' | 'way' | 'relation'; ref: number; role: string }[];
+  members?: { type: 'node' | 'way' | 'relation'; ref: number; role: string; geometry?: { lat: number; lon: number }[] }[];
   version?: number;
   timestamp?: string;
   // Present in "out meta" responses; LAKBAY drops them (personal data).
@@ -120,7 +120,7 @@ export async function runOverpass(query: string, options: FetchOptions): Promise
     }
   }
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 4; attempt++) {
     const wait = lastRequestAt + MIN_GAP_MS - Date.now();
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     lastRequestAt = Date.now();
@@ -136,8 +136,10 @@ export async function runOverpass(query: string, options: FetchOptions): Promise
       body: `data=${encodeURIComponent(query)}`,
     });
 
-    if (response.status === 429 || response.status === 504) {
-      const backoff = 60_000 * attempt;
+    if ([429, 502, 503, 504].includes(response.status)) {
+      if (attempt === 4) break;
+      const backoff = 30_000 * 2 ** (attempt - 1); // 30 s, 60 s, 120 s
+      await response.text().catch(() => undefined);
       log(`  Overpass is busy (HTTP ${response.status}); waiting ${backoff / 1000} s before retrying.`);
       await new Promise((r) => setTimeout(r, backoff));
       continue;
@@ -149,5 +151,5 @@ export async function runOverpass(query: string, options: FetchOptions): Promise
     writeFileSync(file, JSON.stringify({ fetchedAt: new Date().toISOString(), query, body }));
     return { data: JSON.parse(body) as OverpassResponse, sha256: sha256(body), fromCache: false };
   }
-  throw new Error('Overpass stayed busy after 3 attempts. Try again later (do not loop).');
+  throw new Error('Overpass stayed busy after 4 attempts. Try again later, or set OVERPASS_URL to another public server (see docs/data-pipeline.md).');
 }

@@ -20,6 +20,7 @@ import { contentHash } from '../lib/hash';
 import { classifyOsmPlace, classifyOsmRoute } from '../lib/osmClassify';
 import { placesQuery, routesQuery, type OverpassResponse } from '../lib/overpass';
 import { buildRoutePath } from '../lib/routeGeometry';
+import { assignFromBoundaries, boundariesFromOverpass, containsPoint } from '../lib/boundaries';
 import { similarity } from '../lib/text';
 import { emptyDraft } from '../lib/types';
 import { validateCandidate } from '../lib/validate';
@@ -247,4 +248,41 @@ test('GTFS: stops, routes with shape and members; old feeds are flagged', () => 
   assert.equal(route.path?.coordinates.length, 2);
   assert.deepEqual(route.members.map((m) => m.external_id), ['gtfs:test_gtfs:stop/S1', 'gtfs:test_gtfs:stop/S2']);
   assert.ok(route.issues?.some((i) => i.code === 'dataset_expired'));
+});
+
+test('a stop found via another area\'s route keeps the municipality of its own area', () => {
+  const asMember = emptyDraft({ external_id: 'osm:node/1', kind: 'stop', classification: 'designated_stop', name: 'X', lon: 120.96, lat: 14.75 });
+  const asPlace = { ...asMember, area_code: 'ph-bulacan-meycauayan', municipality: 'Meycauayan', province: 'Bulacan' };
+  const [only] = finalizeCandidates([asMember, asPlace], new Date('2026-11-20'));
+  assert.equal(only.municipality, 'Meycauayan');
+  assert.ok(!only.issues.some((i) => i.code === 'municipality_unknown'));
+});
+
+test('municipality outside the areas comes from boundaries (with holes), never from the name', () => {
+  // INVENTED squares: a town with a hole, inside a province.
+  const ring = (x1: number, y1: number, x2: number, y2: number) =>
+    [[x1, y1], [x2, y1], [x2, y2], [x1, y2], [x1, y1]].map(([lon, lat]) => ({ lon, lat }));
+  const data: OverpassResponse = {
+    elements: [
+      { type: 'relation', id: 6, tags: { name: 'Testtown', admin_level: '6' }, members: [
+        { type: 'way', ref: 1, role: 'outer', geometry: ring(121.0, 14.6, 121.1, 14.7) },
+        { type: 'way', ref: 2, role: 'inner', geometry: ring(121.04, 14.64, 121.06, 14.66) },
+      ] },
+      { type: 'relation', id: 4, tags: { name: 'Testprovince', admin_level: '4' }, members: [
+        { type: 'way', ref: 3, role: 'outer', geometry: ring(120.9, 14.5, 121.14, 14.9) },
+      ] },
+    ],
+  };
+  const b = boundariesFromOverpass(data);
+  assert.equal(containsPoint(b[0], 121.02, 14.62), true);
+  assert.equal(containsPoint(b[0], 121.05, 14.65), false, 'inside the hole');
+  const stop = (id: string, lon: number, lat: number, name: string) =>
+    emptyDraft({ external_id: id, kind: 'stop', classification: 'designated_stop', name, lon, lat });
+  const inTown = stop('a', 121.02, 14.62, 'Somewhere Else Stop');
+  const inHole = stop('b', 121.05, 14.65, 'Testtown Stop');
+  assert.equal(assignFromBoundaries([inTown, inHole], b), 1);
+  assert.equal(inTown.municipality, 'Testtown');
+  assert.equal(inTown.province, 'Testprovince');
+  assert.match(String(inTown.attributes.municipality_source), /relation\/6/);
+  assert.equal(inHole.municipality, null, 'a name mentioning the town is not used');
 });

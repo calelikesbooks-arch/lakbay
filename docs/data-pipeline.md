@@ -18,7 +18,7 @@ document or operator) can make a record `verified`.
 | Imports are unverified | Staged rows are only visible to moderators. Promoting creates a **draft**, never a verified record. |
 | A mapped road is not a transit route | `osmClassify.ts` only reads `type=route` relations with a transit `route=` value. Ways tagged `highway=*` are never turned into routes. Every route gets the `route_unconfirmed` warning. |
 | Mapped ≠ running | OSM, GTFS and community sources **cannot** verify (database check, test 35). |
-| Never invent coordinates | Missing or impossible coordinates block a candidate. Out-of-country points are not stored as a location (only kept as a note). Points outside the pilot area keep `municipality = null`; the reviewer must type it. |
+| Never invent coordinates | Missing or impossible coordinates block a candidate. Out-of-country points are not stored as a location (only kept as a note). Points outside the imported areas get their municipality from the official OSM boundaries (point-in-polygon, Bulacan–Metro Manila corridor only), recorded in `attributes.municipality_source`; if no single boundary contains them, the reviewer must type it. Names are never used to guess a town. |
 | Never invent route connections | Route lines with gaps are **not** stored (`routeGeometry.ts` never bridges gaps). Route stops are linked only if the reviewer already promoted/linked them. |
 | Never invent fares or schedules | The pipeline has no fare or schedule importer. Fares stay manual with official sources. |
 | Attribution | Every staged row keeps `provider_code`, `external_id`, `external_url`; promotion creates a `sources` row with the provider's attribution text and an `evidence` row. |
@@ -80,7 +80,7 @@ normal: the survey CSV is how real coverage grows.
 ## 4. Commands
 
 ```bash
-npm run test:pipeline                     # offline tests (fake data), 16 tests
+npm run test:pipeline                     # offline tests (fake data), 18 tests
 npm run typecheck:pipeline                # type check
 
 npm run pipeline -- areas                 # list import areas
@@ -94,6 +94,11 @@ npm run pipeline -- csv --file data/raw/survey_2026-12.csv
 
 npm run pipeline -- gtfs --provider dotc_ptis_gtfs --dir data/raw/gtfs --bbox 120.9,14.6,121.1,14.9 --dry-run
 ```
+
+If Overpass says it is busy (HTTP 429/502/503/504), the pipeline waits
+30 s, 60 s, then 120 s and gives up after 4 tries. Try again later, or use
+another public server from the OSM wiki list "Public Overpass API instances",
+e.g. in `.env.pipeline`: `OVERPASS_URL=https://overpass.private.coffee/api/interpreter`.
 
 Every run writes a report to `pipeline/output/` (`.md` to read, `.json` for
 details): counts, blockers, warnings, duplicates.
@@ -155,7 +160,7 @@ different admin hierarchy); verify them the same way before enabling.
 
 ## 9. Testing (what was run before delivery)
 
-- `npm run test:pipeline`: 16 tests with fake fixtures (classification,
+- `npm run test:pipeline`: 18 tests with fake fixtures (classification,
   roads vs routes, gaps, validation, duplicates, CSV, GTFS).
 - `security_test.sql`: 36 tests incl. 33–36 for the import system.
 - A contract test fed the pipeline's real output into the database
