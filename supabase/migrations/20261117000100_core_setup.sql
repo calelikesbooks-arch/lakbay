@@ -100,6 +100,9 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function private.handle_new_user();
 
+-- Users created BEFORE this migration have no profile yet: add one for each.
+insert into public.profiles (id) select id from auth.users on conflict (id) do nothing;
+
 -- ---------------------------------------------------------------------
 -- Roles. A user may hold several. Only admins can grant roles.
 -- The first admin is created by hand in the SQL editor (see docs).

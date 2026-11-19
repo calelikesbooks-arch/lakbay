@@ -6,7 +6,7 @@
 -- end, so no test users or test records are left behind.
 --
 -- Success = the Results panel shows one row:
---   "ALL 36 SECURITY TESTS PASSED. Test data was rolled back."
+--   "ALL 40 SECURITY TESTS PASSED. Test data was rolled back."
 -- Any failure stops the script with an error such as "FAIL 17: ...",
 -- and nothing is saved. (Individual "PASS nn" lines appear as notices
 -- when run with psql.)
@@ -549,6 +549,190 @@ end $$;
 
 reset role;
 
+-- ===================== FIELD VERIFICATION (migration 8) =====================
+set local role authenticated;
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.mapper'), 'role', 'authenticated')::text, true);
+do $$ begin
+  perform public.field_check_nearby(120.95, 14.76);
+  raise exception 'FAIL 37: a mapper used the field check tool';
+exception when insufficient_privilege then
+  null;
+end $$;
+do $$ begin
+  if exists (select 1 from public.field_checks) then
+    raise exception 'FAIL 37: a mapper can read field checks';
+  end if;
+  raise notice 'PASS 37: only moderators/admins can do field checks';
+end $$;
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.admin'), 'role', 'authenticated')::text, true);
+
+do $$
+declare
+  v_stop uuid;
+  v_stop2 uuid;
+  v_term uuid;
+  v_res jsonb;
+  v_pt extensions.geography;
+begin
+  insert into public.stops (name, location, municipality, province)
+  values ('TEST Field Stop', extensions.st_setsrid(extensions.st_makepoint(121.0000, 14.7000), 4326)::extensions.geography, 'Test Town', 'Test Province')
+  returning id into v_stop;
+
+  -- bad GPS accuracy
+  begin
+    perform public.submit_field_check('stop', v_stop, 'confirmed', now(), 121.0000, 14.7000, 80);
+    raise exception 'FAIL 38: confirmed with 80 m GPS accuracy';
+  exception when invalid_parameter_value then null; end;
+  -- no GPS at all
+  begin
+    perform public.submit_field_check('stop', v_stop, 'confirmed', now());
+    raise exception 'FAIL 38: confirmed without GPS';
+  exception when invalid_parameter_value then null; end;
+  -- too far (about 220 m north)
+  begin
+    perform public.submit_field_check('stop', v_stop, 'confirmed', now(), 121.0000, 14.7020, 10);
+    raise exception 'FAIL 38: confirmed from 220 m away';
+  exception when invalid_parameter_value then null; end;
+  -- future / too old
+  begin
+    perform public.submit_field_check('stop', v_stop, 'confirmed', now() + interval '1 day', 121.0, 14.7, 10);
+    raise exception 'FAIL 38: accepted a future check';
+  exception when invalid_datetime_format then null; end;
+  begin
+    perform public.submit_field_check('stop', v_stop, 'confirmed', now() - interval '30 days', 121.0, 14.7, 10);
+    raise exception 'FAIL 38: accepted a 30-day-old check';
+  exception when invalid_datetime_format then null; end;
+  -- fare on a stop
+  begin
+    perform public.submit_field_check('stop', v_stop, 'confirmed', now(), 121.0, 14.7, 10, null, 13);
+    raise exception 'FAIL 38: accepted a fare on a stop';
+  exception when invalid_parameter_value then null; end;
+
+  -- good check, ~11 m away with 10 m accuracy
+  v_res := public.submit_field_check('stop', v_stop, 'confirmed', now(), 121.0000, 14.7001, 10, 'TEST SIGN', null, null, null, null, 'private note');
+  if (select status from public.stops where id = v_stop) <> 'verified' or v_res ->> 'status_after' <> 'verified' then
+    raise exception 'FAIL 38: a good field check did not verify the stop: %', v_res;
+  end if;
+  if (select count(*) from public.evidence e join public.sources s on s.id = e.source_id
+      where e.stop_id = v_stop and s.source_type = 'field_survey') < 3 then
+    raise exception 'FAIL 38: evidence (existence, location, signboard) missing';
+  end if;
+  if exists (select 1 from public.sources s join public.evidence e on e.source_id = s.id
+             where e.stop_id = v_stop and s.notes like '%private note%') then
+    raise exception 'FAIL 38: private notes leaked into the public source';
+  end if;
+
+  -- not found on a DRAFT only logs
+  insert into public.stops (name, location, municipality, province)
+  values ('TEST Draft Stop', extensions.st_setsrid(extensions.st_makepoint(121.0100, 14.7100), 4326)::extensions.geography, 'Test Town', 'Test Province')
+  returning id into v_stop2;
+  v_res := public.submit_field_check('stop', v_stop2, 'not_found', now(), 121.0100, 14.7100, 10);
+  if (select status from public.stops where id = v_stop2) <> 'draft' then
+    raise exception 'FAIL 38: one "not found" changed a draft';
+  end if;
+  -- moved: location replaced by the measured point (~100 m east)
+  v_res := public.submit_field_check('stop', v_stop2, 'moved', now(), 121.0109, 14.7100, 8);
+  select location into v_pt from public.stops where id = v_stop2;
+  if extensions.st_distance(v_pt, extensions.st_setsrid(extensions.st_makepoint(121.0109, 14.7100), 4326)::extensions.geography) > 1
+     or (select status from public.stops where id = v_stop2) <> 'verified' then
+    raise exception 'FAIL 38: "moved" did not update and verify the location: %', v_res;
+  end if;
+  -- not found on a VERIFIED record: needs re-check
+  perform public.submit_field_check('stop', v_stop, 'not_found', now(), 121.0000, 14.7000, 10);
+  if (select status from public.stops where id = v_stop) <> 'needs_recheck' then
+    raise exception 'FAIL 38: "not found" on a verified stop did not ask for a re-check';
+  end if;
+  -- closed: retired
+  insert into public.terminals (name, location, municipality, province)
+  values ('TEST Field Terminal', extensions.st_setsrid(extensions.st_makepoint(121.0200, 14.7200), 4326)::extensions.geography, 'Test Town', 'Test Province')
+  returning id into v_term;
+  perform public.submit_field_check('terminal', v_term, 'closed', now());
+  if (select status from public.terminals where id = v_term) <> 'retired' then
+    raise exception 'FAIL 38: "closed" did not retire the terminal';
+  end if;
+  if (select count(*) from public.field_checks where stop_id in (v_stop, v_stop2) or terminal_id = v_term) <> 5 then
+    raise exception 'FAIL 38: field checks were not all logged';
+  end if;
+  raise notice 'PASS 38: place checks need good GPS near the spot; drafts are not removed by one visit; notes stay private';
+end $$;
+
+do $$
+declare
+  v_a uuid; v_b uuid; v_route uuid; v_var uuid; v_geo uuid; v_res jsonb;
+  v_fare_rules bigint := (select count(*) from public.fare_rules);
+begin
+  insert into public.stops (name, location, municipality, province) values
+    ('TEST Ride A', extensions.st_setsrid(extensions.st_makepoint(121.0300, 14.7300), 4326)::extensions.geography, 'Test Town', 'Test Province')
+  returning id into v_a;
+  insert into public.stops (name, location, municipality, province) values
+    ('TEST Ride B', extensions.st_setsrid(extensions.st_makepoint(121.0400, 14.7400), 4326)::extensions.geography, 'Test Town', 'Test Province')
+  returning id into v_b;
+  insert into public.routes (mode_code, name) values ('jeepney', 'TEST Field Route') returning id into v_route;
+  insert into public.route_variants (route_id, direction) values (v_route, 'outbound') returning id into v_var;
+  insert into public.route_variant_stops (variant_id, stop_sequence, stop_id) values (v_var, 1, v_a), (v_var, 2, v_b);
+  insert into public.route_geometries (variant_id, geom, capture_method)
+  values (v_var, extensions.st_geomfromgeojson('{"type":"LineString","coordinates":[[121.03,14.73],[121.04,14.74]]}')::extensions.geography, 'osm')
+  returning id into v_geo;
+
+  begin
+    perform public.submit_field_check('route_variant', v_var, 'confirmed', now(), null, null, null, null, 13, v_b, v_a);
+    raise exception 'FAIL 39: accepted a ride in the wrong direction';
+  exception when invalid_parameter_value then null; end;
+  begin
+    perform public.submit_field_check('route_variant', v_var, 'unsure', now(), null, null, null, null, 13);
+    raise exception 'FAIL 39: accepted a fare without a ride';
+  exception when invalid_parameter_value then null; end;
+
+  -- ride without confirming the line
+  v_res := public.submit_field_check('route_variant', v_var, 'confirmed', now(), null, null, null, 'TEST - SIGN', 13, v_a, v_b, false);
+  if (select status from public.route_variants where id = v_var) <> 'verified'
+     or (select status from public.routes where id = v_route) <> 'verified' then
+    raise exception 'FAIL 39: riding did not verify the variant and route: %', v_res;
+  end if;
+  if (select status from public.route_geometries where id = v_geo) = 'verified' then
+    raise exception 'FAIL 39: the line was verified although the rider said it does not match';
+  end if;
+  if not exists (select 1 from public.evidence where route_variant_id = v_var and claim = 'fare' and note like '%not an official fare%') then
+    raise exception 'FAIL 39: the fare paid was not recorded as an observation';
+  end if;
+  if (select count(*) from public.fare_rules) <> v_fare_rules then
+    raise exception 'FAIL 39: a field check created a fare rule';
+  end if;
+  if (select signboard_text from public.route_variants where id = v_var) <> 'TEST - SIGN' then
+    raise exception 'FAIL 39: signboard text not stored';
+  end if;
+  -- second ride confirming the line
+  perform public.submit_field_check('route_variant', v_var, 'confirmed', now(), null, null, null, null, null, v_a, v_b, true);
+  if (select status from public.route_geometries where id = v_geo) <> 'verified' then
+    raise exception 'FAIL 39: the line was not verified when the rider confirmed it';
+  end if;
+  raise notice 'PASS 39: rides verify routes; fares stay observations; the line needs the rider''s confirmation';
+end $$;
+
+reset role;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+do $$ begin
+  begin
+    perform 1 from public.field_checks;
+    raise exception 'FAIL 40: anon can read field checks (GPS positions)';
+  exception when insufficient_privilege then null; end;
+  if not exists (select 1 from public.stops where name = 'TEST Draft Stop' and status = 'verified') then
+    raise exception 'FAIL 40: a field-verified stop is not public';
+  end if;
+  if not exists (select 1 from public.sources where source_type = 'field_survey' and title like 'LAKBAY field check: TEST Draft Stop%') then
+    raise exception 'FAIL 40: the field survey source of a public stop is not visible';
+  end if;
+  raise notice 'PASS 40: verified results and their sources are public; raw field checks are not';
+end $$;
+
+reset role;
+
 -- Privilege audit: Supabase grants EXECUTE on new functions to anon by
 -- default. Only the public functions listed below may be callable without signing in.
 do $$
@@ -577,4 +761,4 @@ do $$ begin raise notice 'ALL TESTS PASSED (everything is now rolled back)'; end
 rollback;
 
 -- Reached only if every check above passed (any failure stops the script).
-select 'ALL 36 SECURITY TESTS PASSED. Test data was rolled back.' as result;
+select 'ALL 40 SECURITY TESTS PASSED. Test data was rolled back.' as result;

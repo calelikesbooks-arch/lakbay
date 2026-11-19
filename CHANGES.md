@@ -135,3 +135,26 @@ See `docs/map.md` (features, providers, Nominatim policy compliance, setup).
 - Stops outside the imported areas get municipality/province from OSM administrative boundaries (`pipeline/lib/boundaries.ts`, one extra cached Overpass query).
 - Overpass client retries on 502/503 too (30 s, 60 s, 120 s).
 - 18 pipeline tests.
+
+---
+
+# Milestone: field verification (2026-11-21)
+
+## Added
+| File | Purpose |
+| --- | --- |
+| `supabase/migrations/20261121000800_field_verification.sql` | `field_checks` log, `field_check_nearby`, `field_check_routes`, `submit_field_check` |
+| `supabase/rollback/20261121000800_down.sql` | Rollback |
+| `supabase/setup/all_migrations.sql` | All migrations in one file, for a new project |
+| `src/pages/FieldCheckPage.tsx` (`/field`) | Places near me, Ride a route, Recent |
+| `src/components/field/*` | GPS panel, place and ride forms |
+| `src/components/admin/StaffGate.tsx` | Shared moderator sign-in gate |
+| `src/lib/field/*` | Live GPS (fresh fixes only), field-check API |
+| `docs/field-verification.md` | Guide |
+
+## Changed
+- `src/pages/AdminPage.tsx`: uses `StaffGate`; link to Field check.
+- `src/router.tsx`: `/field`. `src/pages/ProfilePage.tsx`: link text.
+- `supabase/migrations/20261117000100_core_setup.sql`: creates profiles for users that existed before the migration.
+- `supabase/tests/security_test.sql`: tests 37–40 (40 total).
+- `docs/database.md`: migration 8.

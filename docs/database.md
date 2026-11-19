@@ -12,6 +12,7 @@
 | Community | `community_submissions` |
 | Personal | `saved_destinations`, `saved_trips` |
 | Admin | `audit_log` |
+| Field checks (migration 8) | `field_checks` (private) |
 | Data import (migration 7) | `data_providers`, `import_areas`, `import_runs`, `staged_features`, `staged_route_members`, view `admin_review_queue` |
 
 How routes are modelled:
@@ -94,6 +95,9 @@ You need: your Supabase project, and the files in `supabase/migrations/`.
    6. `20261117000500_queries_and_duplicates.sql`
    7. `20261117000600_map_queries.sql` (map: visible-area loading, place search, routes at a location, route lines)
    8. `20261120000700_data_acquisition.sql` (import system: source registry, staging, review queue)
+   9. `20261121000800_field_verification.sql` (field checks: see `docs/field-verification.md`)
+
+   New, empty project? `supabase/setup/all_migrations.sql` contains all of them in one file.
 3. Each should end with **"Success. No rows returned"**. If one fails, stop and
    send me the error. Do not run the next file.
 
@@ -135,7 +139,7 @@ app or the SQL editor to manage other people.
 ## 6. Test
 
 1. SQL Editor → paste `supabase/tests/security_test.sql` → **Run**.
-2. Expected result row: **ALL 36 SECURITY TESTS PASSED. Test data was rolled back.**
+2. Expected result row: **ALL 40 SECURITY TESTS PASSED. Test data was rolled back.**
 3. Any error such as `FAIL 17: …` means a rule is broken. Nothing is saved
    either way, because the test ends with `rollback`.
 4. App check: run `npm run dev`, submit a report on the Community page. It
@@ -158,6 +162,7 @@ stopping at the migration you want to return to:
 
 | Script | Effect |
 | --- | --- |
+| `20261121000800_down.sql` | Removes field-check functions and the private check log. Verifications already made stay. |
 | `20261120000700_down.sql` | Removes the import system (registry, staging, review queue) and restores the old verification rule. Records already promoted to drafts stay. |
 | `20261117000600_down.sql` | Removes the map query functions. Keeps data. |
 | `20261117000500_down.sql` | Removes nearby/duplicate functions and views. Keeps data. |

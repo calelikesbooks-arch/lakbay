@@ -127,7 +127,7 @@ export default function ProfilePage() {
         </span>
         <span className="flex-1">
           <span className="block font-bold">Data review (moderators)</span>
-          <span className="block text-sm text-muted">Review imported terminals, stops and routes</span>
+          <span className="block text-sm text-muted">Review imports and check places on site (Field check)</span>
         </span>
         <Icon name="chevronRight" className="size-5 text-muted" />
       </Link>

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AdminSignIn } from '../components/admin/AdminSignIn';
+import { Link } from 'react-router';
 import { ReviewItemPanel } from '../components/admin/ReviewItemPanel';
+import { StaffGate, useSignedIn } from '../components/admin/StaffGate';
 import { Badge } from '../components/ui/Badge';
-import { Button } from '../components/ui/Button';
+import { Button, buttonClasses } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Icon } from '../components/ui/Icon';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -18,26 +19,13 @@ import {
   type QueueItem,
   type RunRow,
 } from '../lib/admin/review';
-import { fetchMyRoles, signOut, useSession } from '../lib/auth';
+import { signOut } from '../lib/auth';
 import { formatDate } from '../lib/format';
 
 type Tab = 'queue' | 'sources' | 'runs';
 
 export default function AdminPage() {
-  const session = useSession();
-  const [roles, setRoles] = useState<string[] | null>(null);
-  const userId = session.status === 'ready' ? session.session?.user.id : undefined;
-
-  useEffect(() => {
-    if (!userId) {
-      setRoles(null);
-      return;
-    }
-    fetchMyRoles(userId).then(setRoles);
-  }, [userId]);
-
-  const isStaff = !!roles && (roles.includes('moderator') || roles.includes('admin'));
-
+  const signedIn = useSignedIn();
   return (
     <div className="space-y-5">
       <PageHeader
@@ -45,24 +33,21 @@ export default function AdminPage() {
         title="Data review"
         description="Imported candidates wait here. Nothing reaches the public app until it is promoted to a draft and then verified with a field survey or official source."
         actions={
-          userId ? (
-            <Button variant="ghost" size="sm" onClick={() => signOut()}>
-              Sign out
-            </Button>
-          ) : undefined
+          <div className="flex gap-2">
+            <Link to="/field" className={buttonClasses('secondary', 'sm')}>
+              <Icon name="pin" className="size-4" /> Field check
+            </Link>
+            {signedIn && (
+              <Button variant="ghost" size="sm" onClick={() => signOut()}>
+                Sign out
+              </Button>
+            )}
+          </div>
         }
       />
-
-      {session.status === 'loading' && <Spinner />}
-      {session.status === 'unavailable' && <EmptyState icon="alert" title="Database not connected" />}
-      {session.status === 'ready' && !session.session && <AdminSignIn />}
-      {session.status === 'ready' && session.session && roles === null && <Spinner />}
-      {session.status === 'ready' && session.session && roles !== null && !isStaff && (
-        <EmptyState icon="shieldCheck" title="No access">
-          This account is not a moderator or admin. An admin can grant the role (see docs/database.md).
-        </EmptyState>
-      )}
-      {isStaff && <StaffArea />}
+      <StaffGate>
+        <StaffArea />
+      </StaffGate>
     </div>
   );
 }

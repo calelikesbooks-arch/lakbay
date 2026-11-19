@@ -13,6 +13,7 @@ const CommunityPage = lazy(() => import('./pages/CommunityPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const DesignSystemPage = lazy(() => import('./pages/DesignSystemPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
+const FieldCheckPage = lazy(() => import('./pages/FieldCheckPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 export const router = createBrowserRouter([
@@ -30,6 +31,7 @@ export const router = createBrowserRouter([
       { path: 'profile', element: <ProfilePage /> },
       { path: 'design', element: <DesignSystemPage /> },
       { path: 'admin', element: <AdminPage /> },
+      { path: 'field', element: <FieldCheckPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
