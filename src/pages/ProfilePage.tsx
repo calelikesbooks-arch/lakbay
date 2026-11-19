@@ -121,6 +121,17 @@ export default function ProfilePage() {
         </div>
       </Card>
 
+      <Link to="/admin" className="flex items-center gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-4 hover:bg-surface-2/60">
+        <span className="grid size-10 place-items-center rounded-xl bg-surface-2 text-ink">
+          <Icon name="shieldCheck" className="size-5" />
+        </span>
+        <span className="flex-1">
+          <span className="block font-bold">Data review (moderators)</span>
+          <span className="block text-sm text-muted">Review imported terminals, stops and routes</span>
+        </span>
+        <Icon name="chevronRight" className="size-5 text-muted" />
+      </Link>
+
       <Link to="/design" className="flex items-center gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-4 hover:bg-surface-2/60">
         <span className="grid size-10 place-items-center rounded-xl bg-surface-2 text-ink">
           <Icon name="palette" className="size-5" />

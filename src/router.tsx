@@ -12,6 +12,7 @@ const SavedTripsPage = lazy(() => import('./pages/SavedTripsPage'));
 const CommunityPage = lazy(() => import('./pages/CommunityPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const DesignSystemPage = lazy(() => import('./pages/DesignSystemPage'));
+const AdminPage = lazy(() => import('./pages/AdminPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 export const router = createBrowserRouter([
@@ -28,6 +29,7 @@ export const router = createBrowserRouter([
       { path: 'community', element: <CommunityPage /> },
       { path: 'profile', element: <ProfilePage /> },
       { path: 'design', element: <DesignSystemPage /> },
+      { path: 'admin', element: <AdminPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

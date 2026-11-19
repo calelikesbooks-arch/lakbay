@@ -12,6 +12,7 @@
 | Community | `community_submissions` |
 | Personal | `saved_destinations`, `saved_trips` |
 | Admin | `audit_log` |
+| Data import (migration 7) | `data_providers`, `import_areas`, `import_runs`, `staged_features`, `staged_route_members`, view `admin_review_queue` |
 
 How routes are modelled:
 
@@ -40,6 +41,10 @@ draft ──(creator)──▶ pending_review ──(moderator inserts verificat
 - A record becomes `verified` **only** by inserting a row into
   `verification_records`, and **only** if at least one `evidence` row links
   it to a `source`. Nobody can change the status directly, not even admins.
+- Since migration 7, `verified` also needs at least one **primary** source:
+  `field_survey`, `official_document` or `operator`. OpenStreetMap, GTFS
+  feeds and community reports are leads only and cannot verify a record on
+  their own (see `docs/data-pipeline.md`).
 - `last_verified_on` and `next_review_on` come from the verification record
   and cannot be edited by hand.
 - Every change is written to `audit_log` (who, when, before, after).
@@ -88,6 +93,7 @@ You need: your Supabase project, and the files in `supabase/migrations/`.
    5. `20261117000400_rls_policies.sql`
    6. `20261117000500_queries_and_duplicates.sql`
    7. `20261117000600_map_queries.sql` (map: visible-area loading, place search, routes at a location, route lines)
+   8. `20261120000700_data_acquisition.sql` (import system: source registry, staging, review queue)
 3. Each should end with **"Success. No rows returned"**. If one fails, stop and
    send me the error. Do not run the next file.
 
@@ -129,7 +135,7 @@ app or the SQL editor to manage other people.
 ## 6. Test
 
 1. SQL Editor → paste `supabase/tests/security_test.sql` → **Run**.
-2. Expected result row: **ALL 32 SECURITY TESTS PASSED. Test data was rolled back.**
+2. Expected result row: **ALL 36 SECURITY TESTS PASSED. Test data was rolled back.**
 3. Any error such as `FAIL 17: …` means a rule is broken. Nothing is saved
    either way, because the test ends with `rollback`.
 4. App check: run `npm run dev`, submit a report on the Community page. It
@@ -152,6 +158,7 @@ stopping at the migration you want to return to:
 
 | Script | Effect |
 | --- | --- |
+| `20261120000700_down.sql` | Removes the import system (registry, staging, review queue) and restores the old verification rule. Records already promoted to drafts stay. |
 | `20261117000600_down.sql` | Removes the map query functions. Keeps data. |
 | `20261117000500_down.sql` | Removes nearby/duplicate functions and views. Keeps data. |
 | `20261117000400_down.sql` | Removes policies. RLS stays ON, so the API is locked (safe, nothing exposed). |

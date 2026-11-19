@@ -6,7 +6,7 @@
 -- end, so no test users or test records are left behind.
 --
 -- Success = the Results panel shows one row:
---   "ALL 32 SECURITY TESTS PASSED. Test data was rolled back."
+--   "ALL 36 SECURITY TESTS PASSED. Test data was rolled back."
 -- Any failure stops the script with an error such as "FAIL 17: ...",
 -- and nothing is saved. (Individual "PASS nn" lines appear as notices
 -- when run with psql.)
@@ -432,6 +432,121 @@ begin
   raise notice 'PASS 32: map queries return only verified locations and refuse huge areas';
 end $$;
 
+-- ===================== DATA IMPORT (migration 7) =====================
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.mapper'), 'role', 'authenticated')::text, true);
+
+do $$ begin
+  perform public.start_import_run('openstreetmap_overpass', null, 'osm_overpass');
+  raise exception 'FAIL 33: a mapper started an import run';
+exception when insufficient_privilege then
+  null;
+end $$;
+do $$ begin
+  if exists (select 1 from public.staged_features) or exists (select 1 from public.admin_review_queue) then
+    raise exception 'FAIL 33: a mapper can read the staging area';
+  end if;
+  raise notice 'PASS 33: only moderators/admins can import or see staged data';
+end $$;
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.admin'), 'role', 'authenticated')::text, true);
+
+do $$ begin
+  perform public.start_import_run('dotc_ptis_gtfs', null, 'gtfs');
+  raise exception 'FAIL 34: imported from a provider whose license is not approved';
+exception when insufficient_privilege then
+  raise notice 'PASS 34: providers must be approved in the registry before import';
+end $$;
+
+do $$
+declare
+  v_run uuid;
+  v_res jsonb;
+  v_stop_staged uuid;
+  v_route_staged uuid;
+  v_stop uuid;
+  v_promo jsonb;
+begin
+  v_run := public.start_import_run('openstreetmap_overpass', null, 'osm_overpass', '{"test": true}');
+  v_res := public.upsert_staged_features(v_run, jsonb_build_array(
+    jsonb_build_object(
+      'external_id', 'osm:node/999000001', 'external_url', 'https://www.openstreetmap.org/node/999000001',
+      'kind', 'stop', 'classification', 'designated_stop', 'name', 'TEST Imported Stop',
+      'mode_hints', jsonb_build_array('jeepney'), 'mode_confidence', 'inferred',
+      'municipality', 'Test Town', 'province', 'Test Province',
+      'lon', 120.9400, 'lat', 14.7800, 'issues', '[]'::jsonb, 'quality', 'ok',
+      'content_hash', repeat('a', 64)),
+    jsonb_build_object(
+      'external_id', 'osm:relation/999000002', 'external_url', 'https://www.openstreetmap.org/relation/999000002',
+      'kind', 'route', 'classification', 'route', 'name', 'TEST Imported Route', 'from_label', 'TEST A', 'to_label', 'TEST B',
+      'mode_hints', jsonb_build_array('jeepney'), 'mode_confidence', 'inferred',
+      'path', jsonb_build_object('type', 'LineString', 'coordinates', jsonb_build_array(jsonb_build_array(120.94, 14.78), jsonb_build_array(120.95, 14.77))),
+      'path_complete', true, 'issues', '[]'::jsonb, 'quality', 'warning',
+      'members', jsonb_build_array(jsonb_build_object('external_id', 'osm:node/999000001', 'role', 'platform')),
+      'content_hash', repeat('b', 64))
+  ));
+  if (v_res ->> 'inserted')::int <> 2 then
+    raise exception 'FAIL 35: staging upsert returned %', v_res;
+  end if;
+  -- Same content again = unchanged (no duplicate rows)
+  v_res := public.upsert_staged_features(v_run, jsonb_build_array(jsonb_build_object(
+      'external_id', 'osm:node/999000001', 'kind', 'stop', 'classification', 'designated_stop',
+      'name', 'TEST Imported Stop', 'lon', 120.9400, 'lat', 14.7800, 'quality', 'ok', 'content_hash', repeat('a', 64))));
+  if (v_res ->> 'unchanged')::int <> 1 then
+    raise exception 'FAIL 35: re-import was not recognised as unchanged: %', v_res;
+  end if;
+  perform public.finish_import_run(v_run, 'completed', '{"test": true}');
+
+  select id into v_stop_staged from public.staged_features where external_id = 'osm:node/999000001';
+  select id into v_route_staged from public.staged_features where external_id = 'osm:relation/999000002';
+  v_stop := public.promote_staged_feature(v_stop_staged);
+  if (select status from public.stops where id = v_stop) <> 'draft' then
+    raise exception 'FAIL 35: promoted stop is not a draft';
+  end if;
+  v_promo := public.promote_staged_route(v_route_staged, 'jeepney');
+  if (v_promo ->> 'stops_linked')::int <> 1 or not (v_promo ->> 'geometry_added')::boolean then
+    raise exception 'FAIL 35: route promotion result %', v_promo;
+  end if;
+
+  begin
+    insert into public.verification_records (status_to, method, observed_on, stop_id)
+    values ('verified', 'desk_review', private.today_ph(), v_stop);
+    raise exception 'FAIL 35: an OpenStreetMap import alone verified a stop';
+  exception when check_violation then
+    null;
+  end;
+  insert into public.sources (source_type, title, observed_on) values ('field_survey', 'TEST survey of imported stop', private.today_ph());
+  insert into public.evidence (source_id, claim, stop_id)
+  select id, 'existence', v_stop from public.sources where title = 'TEST survey of imported stop';
+  insert into public.verification_records (status_to, method, observed_on, stop_id)
+  values ('verified', 'field_survey', private.today_ph(), v_stop);
+  if (select status from public.stops where id = v_stop) <> 'verified' then
+    raise exception 'FAIL 35: field survey did not verify the stop';
+  end if;
+  raise notice 'PASS 35: imports stage, promote only to drafts, and need a field survey/official source to verify';
+end $$;
+
+reset role;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+do $$ begin
+  if not exists (select 1 from public.data_providers where code = 'openstreetmap_overpass') then
+    raise exception 'FAIL 36: anon cannot read the source registry';
+  end if;
+  begin
+    perform 1 from public.staged_features;
+    raise exception 'FAIL 36: anon can read staged data';
+  exception when insufficient_privilege then
+    null;
+  end;
+  raise notice 'PASS 36: the source registry is public; staged data is not';
+end $$;
+
 reset role;
 
 -- Privilege audit: Supabase grants EXECUTE on new functions to anon by
@@ -462,4 +577,4 @@ do $$ begin raise notice 'ALL TESTS PASSED (everything is now rolled back)'; end
 rollback;
 
 -- Reached only if every check above passed (any failure stops the script).
-select 'ALL 32 SECURITY TESTS PASSED. Test data was rolled back.' as result;
+select 'ALL 36 SECURITY TESTS PASSED. Test data was rolled back.' as result;

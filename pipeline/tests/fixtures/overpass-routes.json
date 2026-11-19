@@ -1,0 +1,30 @@
+{
+  "_comment": "FAKE TEST FIXTURE. Invented ids, names and coordinates in Overpass JSON format. Not transport data.",
+  "osm3s": { "timestamp_osm_base": "2026-11-20T00:00:00Z" },
+  "elements": [
+    { "type": "relation", "id": 900001, "tags": { "boundary": "administrative", "admin_level": "6", "name": "Fixtureville" } },
+    { "type": "relation", "id": 3001, "version": 7, "timestamp": "2026-02-01T00:00:00Z",
+      "tags": { "type": "route", "route": "bus", "bus": "share_taxi", "name": "Jeepney: Fixture Plaza → Fixture City", "from": "Fixture Plaza", "to": "Fixture City", "public_transport:version": "2" },
+      "members": [
+        { "type": "node", "ref": 1001, "role": "platform" },
+        { "type": "node", "ref": 1101, "role": "platform" },
+        { "type": "way", "ref": 4001, "role": "" },
+        { "type": "way", "ref": 4002, "role": "" },
+        { "type": "way", "ref": 4003, "role": "" }
+      ] },
+    { "type": "relation", "id": 3002, "version": 1, "timestamp": "2026-02-01T00:00:00Z",
+      "tags": { "type": "route", "route": "bus", "name": "Fixture Mystery Route" },
+      "members": [
+        { "type": "way", "ref": 4001, "role": "" },
+        { "type": "way", "ref": 4009, "role": "" }
+      ] },
+    { "type": "way", "id": 4001, "geometry": [ { "lat": 14.7600, "lon": 120.9500 }, { "lat": 14.7500, "lon": 120.9600 } ] },
+    { "type": "way", "id": 4002, "geometry": [ { "lat": 14.7400, "lon": 120.9700 }, { "lat": 14.7500, "lon": 120.9600 } ] },
+    { "type": "way", "id": 4003, "geometry": [ { "lat": 14.7400, "lon": 120.9700 }, { "lat": 14.7300, "lon": 120.9800 } ] },
+    { "type": "way", "id": 4009, "geometry": [ { "lat": 14.6000, "lon": 121.0000 }, { "lat": 14.5900, "lon": 121.0100 } ] },
+    { "type": "node", "id": 1001, "lat": 14.7601234, "lon": 120.9501234,
+      "tags": { "highway": "bus_stop", "public_transport": "platform", "share_taxi": "yes", "name": "Fixture Plaza" } },
+    { "type": "node", "id": 1101, "lat": 14.6500000, "lon": 121.0000000,
+      "tags": { "highway": "bus_stop", "public_transport": "platform", "share_taxi": "yes", "name": "Fixture City Stop" } }
+  ]
+}

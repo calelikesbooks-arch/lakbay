@@ -97,3 +97,35 @@ See `docs/map.md` (features, providers, Nominatim policy compliance, setup).
 
 ## Removed
 - `src/components/map/BaseMap.tsx` (replaced by `InteractiveMap.tsx`).
+
+---
+
+# Milestone: data acquisition and import system (2026-11-21)
+
+## Added
+| File | Purpose |
+| --- | --- |
+| `supabase/migrations/20261120000700_data_acquisition.sql` | Source registry, import areas/runs, staging tables, review RPCs, `admin_review_queue`, primary-source rule for verification |
+| `supabase/rollback/20261120000700_down.sql` | Removes all of the above |
+| `pipeline/cli.ts` | `npm run pipeline -- areas / osm / csv / gtfs` |
+| `pipeline/config/areas.ts` | Import areas (Marilao, Meycauayan, Bocaue on; Caloocan, QC off) |
+| `pipeline/importers/osm.ts`, `survey.ts`, `gtfs.ts` | Importers |
+| `pipeline/lib/*.ts` | Overpass client (rate-limited, cached), classification, validation, duplicate detection, route geometry, hashing, DB upload, reports |
+| `pipeline/tests/*` | 16 offline tests with fake fixtures |
+| `data/templates/survey_locations.csv` | Field survey template |
+| `tsconfig.pipeline.json`, `.env.pipeline.example` | Pipeline config |
+| `src/pages/AdminPage.tsx`, `src/components/admin/*` | `/admin`: sign-in, review queue, source registry, import runs |
+| `src/lib/auth.ts`, `src/lib/admin/review.ts` | Staff sign-in and review actions |
+| `docs/data-pipeline.md` | Guide |
+
+## Changed
+- `supabase/tests/security_test.sql`: tests 33–36 (36 total).
+- `src/router.tsx`: `/admin` route. `src/pages/ProfilePage.tsx`: link to it.
+- `package.json`: scripts `pipeline`, `test:pipeline`, `typecheck:pipeline`; dev deps `tsx`, `@types/node`.
+- `tsconfig.app.json`, `tsconfig.node.json`: `"types": []` so Node types stay out of the app.
+- `.gitignore`: `.env.pipeline`, `pipeline/cache/`, `pipeline/output/`, `data/raw/`.
+- `docs/database.md`: migration 7, verification rule, 36 tests, rollback row.
+
+## Behavior change
+- Verifying a record now requires a field survey, official document or operator source.
+  OSM/GTFS/community evidence alone is refused.

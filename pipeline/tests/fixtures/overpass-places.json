@@ -1,0 +1,23 @@
+{
+  "_comment": "FAKE TEST FIXTURE. Invented ids, names and coordinates in Overpass JSON format. Not transport data.",
+  "osm3s": { "timestamp_osm_base": "2026-11-20T00:00:00Z" },
+  "elements": [
+    { "type": "relation", "id": 900001, "tags": { "boundary": "administrative", "admin_level": "6", "name": "Fixtureville" } },
+    { "type": "node", "id": 1001, "lat": 14.7601234, "lon": 120.9501234, "version": 3, "timestamp": "2025-05-01T00:00:00Z", "user": "someone", "uid": 42,
+      "tags": { "highway": "bus_stop", "public_transport": "platform", "share_taxi": "yes", "name": "Fixture Plaza" } },
+    { "type": "node", "id": 1002, "lat": 14.7601500, "lon": 120.9501500, "version": 1, "timestamp": "2025-05-01T00:00:00Z",
+      "tags": { "public_transport": "stop_position", "share_taxi": "yes", "name": "Fixture Plaza" } },
+    { "type": "node", "id": 1003, "lat": 14.7700000, "lon": 120.9600000, "version": 1, "timestamp": "2019-01-01T00:00:00Z",
+      "tags": { "highway": "bus_stop" } },
+    { "type": "way", "id": 2001, "center": { "lat": 14.7650000, "lon": 120.9550000 }, "version": 5, "timestamp": "2026-01-01T00:00:00Z",
+      "tags": { "amenity": "bus_station", "name": "Fixture Jeepney Terminal" } },
+    { "type": "node", "id": 1004, "lat": 14.7660000, "lon": 120.9560000, "version": 1, "timestamp": "2026-01-01T00:00:00Z",
+      "tags": { "amenity": "taxi", "taxi_vehicle": "auto_rickshaw", "name": "Fixture Tricycle Terminal" } },
+    { "type": "node", "id": 1005, "lat": 14.7670000, "lon": 120.9570000,
+      "tags": { "amenity": "taxi", "name": "Fixture Taxi Stand" } },
+    { "type": "node", "id": 1006, "lat": 120.9580000, "lon": 14.7680000,
+      "tags": { "highway": "bus_stop", "name": "Fixture Swapped Stop" } },
+    { "type": "node", "id": 1007, "lat": 14.7690000, "lon": 120.9590000,
+      "tags": { "railway": "station", "public_transport": "station", "train": "yes", "network": "Manila LRT", "name": "Fixture Station" } }
+  ]
+}
